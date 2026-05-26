@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>2 스쿼드 휴가 상신</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #F4F4F0; --surface: #FFFFFF; --border: #E8E8E4;
+    --text: #1C1C1A; --muted: #888884;
+    --accent: #3B5BDB; --accent-light: #E8EDFF;
+    --danger: #C0392B; --danger-light: #FDECEA;
+    --nav-h: 64px; --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html, body { height: 100%; }
+  body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); padding-bottom: calc(var(--nav-h) + var(--safe-bottom)); overflow-x: hidden; }
+
+  /* 헤더 */
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px; padding-top: calc(16px + env(safe-area-inset-top,0px)); position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 17px; font-weight: 600; }
+  header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .refresh-btn { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+  .refresh-btn:active { background: var(--bg); }
+  .refresh-btn.spinning span { display: inline-block; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .wrap { width: 100%; max-width: 560px; margin: 0 auto; padding: 16px 16px 0; box-sizing: border-box; overflow: hidden; }
+  .tab-content { display: none; width: 100%; box-sizing: border-box; }
+  .tab-content.on { display: block; }
+
+  /* 카드 */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 12px; width: 100%; box-sizing: border-box; }
+  .card-title { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 16px; }
+
+  /* 폼 */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+  .field input, .field select, .field textarea {
+    width: 100%; max-width: 100%; height: 48px; padding: 0 14px;
+    border: 1px solid var(--border); border-radius: 10px;
+    font-size: 15px; font-family: inherit;
+    background: var(--bg); color: var(--text);
+    transition: border-color .15s; -webkit-appearance: none; appearance: none;
+    box-sizing: border-box; min-width: 0;
+  }
+  .field { min-width: 0; }
+  .field textarea { height: auto; min-height: 70px; padding: 12px 14px; line-height: 1.6; resize: none; }
+  .field select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row2 > * { min-width: 0; overflow: hidden; }
+
+  /* 색상 선택 */
+  .color-picker { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; }
+  .color-dot {
+    width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; cursor: pointer;
+    border: 3px solid transparent; transition: transform .15s, border-color .15s;
+  }
+  .color-dot.on { border-color: var(--text); transform: scale(1.15); }
+  .color-dot:active { transform: scale(1.1); }
+
+  .btn-submit { width: 100%; height: 52px; background: var(--accent); color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; font-family: inherit; cursor: pointer; margin-top: 4px; transition: opacity .15s; }
+  .btn-submit:active { opacity: .85; }
+  .btn-submit:disabled { opacity: .45; }
+
+  /* 필터 탭 */
+  .filter-tabs { display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 2px; }
+  .filter-tabs::-webkit-scrollbar { display: none; }
+  .ftab { flex-shrink: 0; padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .ftab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .ftab-count { font-size: 11px; margin-left: 4px; opacity: .8; }
+
+  /* 아이템 */
+  .req-item { padding: 14px 0; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-start; }
+  .req-item:last-child { border-bottom: none; padding-bottom: 4px; }
+  .req-item:first-child { padding-top: 4px; }
+  .req-color-bar { width: 4px; border-radius: 4px; align-self: stretch; flex-shrink: 0; min-height: 40px; }
+  .req-body { flex: 1; }
+  .req-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+  .req-name { font-size: 15px; font-weight: 600; }
+  .req-meta { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .req-type { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+  .req-note { font-size: 12px; color: #666; background: var(--bg); border-radius: 6px; padding: 5px 9px; margin-top: 5px; line-height: 1.5; }
+  .req-date { font-size: 11px; color: #bbb; margin-top: 5px; }
+  .btn-delete { height: 30px; padding: 0 10px; border-radius: 6px; font-size: 11px; font-family: inherit; cursor: pointer; background: none; border: 1px solid var(--border); color: var(--muted); margin-top: 6px; }
+  .btn-delete:active { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
+
+  .empty   { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 0; }
+  .loading { text-align: center; color: var(--muted); font-size: 14px; padding: 30px 0; }
+
+  /* ── 미니 캘린더 ── */
+  .cal-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .cal-nav button { background: none; border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text); }
+  .cal-nav button:active { background: var(--bg); }
+  .cal-month { font-size: 15px; font-weight: 600; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-dow { text-align: center; font-size: 11px; color: var(--muted); font-weight: 500; padding: 4px 0 6px; }
+  .cal-day {
+    aspect-ratio: 1; border-radius: 8px; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start; padding-top: 4px;
+    font-size: 12px; position: relative; cursor: default;
+  }
+  .cal-day.today { background: var(--accent-light); font-weight: 700; color: var(--accent); }
+  .cal-day.other-month { color: #ccc; }
+  .cal-day-num { line-height: 1; margin-bottom: 2px; }
+  .cal-dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
+  .cal-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+  /* 하단 네비 */
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 20; background: var(--surface); border-top: 1px solid var(--border); display: flex; padding-bottom: var(--safe-bottom); }
+  .bnav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: var(--nav-h); cursor: pointer; gap: 4px; font-size: 11px; font-weight: 500; color: var(--muted); border: none; background: none; font-family: inherit; padding: 8px 4px; }
+  .bnav-item.on { color: var(--accent); }
+  .bnav-icon { font-size: 22px; line-height: 1; }
+
+  #toast { position: fixed; bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px); left: 50%; transform: translateX(-50%); background: #1C1C1A; color: #fff; padding: 11px 20px; border-radius: 22px; font-size: 14px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity .25s; white-space: nowrap; z-index: 200; max-width: 90vw; }
+  #toast.show { opacity: 1; }
+
+  /* PC */
+  @media (min-width: 768px) {
+    body { padding-bottom: 0; }
+    header { padding: 20px 40px; }
+    .bottom-nav { display: none; }
+    .wrap { max-width: 1200px; width: 100%; padding: 24px 40px 0; display: grid; grid-template-columns: 340px 1fr 280px; gap: 16px; align-items: start; overflow: visible; box-sizing: border-box; }
+    .tab-content { display: block !important; }
+    #toast { bottom: 24px; }
+    .btn-delete:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
+    .btn-submit:hover { opacity: .88; }
+    .cal-nav button:hover { background: var(--bg); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📋 2 스쿼드 휴가 상신</h1>
+    <p>팀 휴가 신청 현황을 확인합니다</p>
+  </div>
+  <button class="refresh-btn" id="refreshBtn" onclick="loadData()"><span>↻</span></button>
+</header>
+
+<div class="wrap">
+
+  <!-- 신청 폼 -->
+  <div class="tab-content on" id="page-form">
+    <div class="card">
+      <div class="card-title">휴가 상신</div>
+      <div class="field">
+        <label>이름</label>
+        <input type="text" id="userName" placeholder="홍길동" autocomplete="name">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>시작일</label>
+          <input type="date" id="startDate">
+        </div>
+        <div class="field">
+          <label>종료일</label>
+          <input type="date" id="endDate">
+        </div>
+      </div>
+      <div class="field">
+        <label>종류</label>
+        <select id="type">
+          <option value="">선택해주세요</option>
+          <option value="연차">연차</option>
+          <option value="오전 반차">오전 반차</option>
+          <option value="오후 반차">오후 반차</option>
+          <option value="반반차">반반차</option>
+          <option value="근무불가">근무불가</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>색상</label>
+        <div class="color-picker" id="colorPicker"></div>
+      </div>
+      <div class="field">
+        <label>비고 <span style="font-weight:400;color:#ccc">(선택)</span></label>
+        <textarea id="note" placeholder="추가로 전달할 내용이 있으면 입력해주세요"></textarea>
+      </div>
+      <button class="btn-submit" id="submitBtn" onclick="submitRequest()">상신하기</button>
+    </div>
+  </div>
+
+  <!-- 현황 -->
+  <div class="tab-content" id="page-list">
+    <div class="card">
+      <div class="filter-tabs">
+        <button class="ftab on" id="ftab-all"      onclick="switchFilter('all')">전체 <span class="ftab-count" id="cnt-all">0</span></button>
+        <button class="ftab"    id="ftab-upcoming" onclick="switchFilter('upcoming')">예정 <span class="ftab-count" id="cnt-upcoming">0</span></button>
+        <button class="ftab"    id="ftab-past"     onclick="switchFilter('past')">지난 휴가 <span class="ftab-count" id="cnt-past">0</span></button>
+      </div>
+      <div id="list"><div class="loading">불러오는 중...</div></div>
+    </div>
+  </div>
+
+  <!-- 미니 캘린더 -->
+  <div class="tab-content" id="page-cal">
+    <div class="card">
+      <div class="cal-nav">
+        <button onclick="moveMonth(-1)">‹</button>
+        <span class="cal-month" id="calMonth"></span>
+        <button onclick="moveMonth(1)">›</button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+  </div>
+
+</div>
+
+<nav class="bottom-nav">
+  <button class="bnav-item on" id="nav-form" onclick="switchPage('form')">
+    <span class="bnav-icon">✏️</span>상신하기
+  </button>
+  <button class="bnav-item" id="nav-list" onclick="switchPage('list')">
+    <span class="bnav-icon">📋</span>현황보기
+  </button>
+  <button class="bnav-item" id="nav-cal" onclick="switchPage('cal')">
+    <span class="bnav-icon">📅</span>캘린더
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbyE5bRgfGqBIR50e4mnLfSPKqcbT6nA3TMU_ww11k2iEUKQ_1cmSXmify8z948aZZC2/exec';
+
+const COLORS = [
+  { label: '보라', value: '#9B59B6' },
+  { label: '파랑', value: '#3498DB' },
+  { label: '초록', value: '#27AE60' },
+  { label: '빨강', value: '#E74C3C' },
+  { label: '주황', value: '#E67E22' },
+  { label: '분홍', value: '#FF69B4' },
+  { label: '하늘', value: '#00BCD4' },
+  { label: '노랑', value: '#F39C12' },
+  { label: '갈색', value: '#795548' },
+  { label: '회색', value: '#607D8B' },
+];
+
+let allData = [];
+let currentFilter = 'all';
+let selectedColor = COLORS[0].value;
+let calYear, calMonth;
+
+// 이번 달로 초기화
+const now = new Date();
+calYear  = now.getFullYear();
+calMonth = now.getMonth();
+
+/* ── 색상 피커 초기화 ── */
+function initColorPicker() {
+  const el = document.getElementById('colorPicker');
+  el.innerHTML = COLORS.map(c => `
+    <div class="color-dot ${c.value === selectedColor ? 'on' : ''}"
+      style="background:${c.value}"
+      title="${c.label}"
+      onclick="selectColor('${c.value}', this)">
+    </div>
+  `).join('');
+}
+
+function selectColor(val, el) {
+  selectedColor = val;
+  document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('on'));
+  el.classList.add('on');
+}
+
+/* ── 페이지 전환 ── */
+function isPC() { return window.innerWidth >= 768; }
+
+function switchPage(page) {
+  if (isPC()) return;
+  ['form','list','cal'].forEach(p => {
+    document.getElementById('page-' + p).classList.toggle('on', p === page);
+    document.getElementById('nav-' + p).classList.toggle('on', p === page);
+  });
+  if (page === 'list') renderList();
+  if (page === 'cal') renderCalendar();
+}
+
+function switchFilter(filter) {
+  currentFilter = filter;
+  ['all','upcoming','past'].forEach(f => {
+    document.getElementById('ftab-' + f).classList.toggle('on', f === filter);
+  });
+  renderList();
+}
+
+/* ── 날짜 유틸 ── */
+function fmt(d) {
+  if (!d) return '';
+  const str = String(d).trim();
+  if (!str || str === 'undefined') return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, day] = str.split('-');
+    return `${y}.${m}.${day}`;
+  }
+  const m2 = str.match(/(\d{4})[\.\-\/](\s*\d{1,2})[\.\-\/](\s*\d{1,2})/);
+  if (m2) return `${m2[1]}.${m2[2].trim().padStart(2,'0')}.${m2[3].trim().padStart(2,'0')}`;
+  return str;
+}
+function fmtRange(s, e) { return s === e ? fmt(s) : `${fmt(s)} ~ ${fmt(e)}`; }
+
+function toDateObj(str) {
+  if (!str) return null;
+  const s = String(str).trim();
+  const m = s.match(/(\d{4})[\.\-\/]\s*(\d{1,2})[\.\-\/]\s*(\d{1,2})/);
+  if (!m) return null;
+  return new Date(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+}
+
+/* ── 캘린더 ── */
+function moveMonth(d) {
+  calMonth += d;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const monthNames = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  document.getElementById('calMonth').textContent = `${calYear}년 ${monthNames[calMonth]}`;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const prevDays = new Date(calYear, calMonth, 0).getDate();
+
+  // 이 달에 해당하는 휴가들
+  const vacMap = {}; // 'yyyy-MM-dd' → [color, ...]
+  allData.forEach(r => {
+    const s = toDateObj(r.start_date);
+    const e = toDateObj(r.end_date);
+    if (!s || !e) return;
+    const cur = new Date(s);
+    while (cur <= e) {
+      if (cur.getFullYear() === calYear && cur.getMonth() === calMonth) {
+        const key = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
+        if (!vacMap[key]) vacMap[key] = [];
+        if (!vacMap[key].includes(r.color)) vacMap[key].push(r.color);
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+  });
+
+  const dows = ['일','월','화','수','목','금','토'];
+  let html = dows.map(d => `<div class="cal-dow">${d}</div>`).join('');
+
+  // 이전 달 날짜
+  for (let i = firstDay - 1; i >= 0; i--) {
+    html += `<div class="cal-day other-month"><span class="cal-day-num">${prevDays - i}</span></div>`;
+  }
+
+  // 이 달 날짜
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(calYear, calMonth, d);
+    const key = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = dateObj.getTime() === today.getTime();
+    const dots = vacMap[key] || [];
+    html += `
+      <div class="cal-day ${isToday ? 'today' : ''}">
+        <span class="cal-day-num">${d}</span>
+        ${dots.length ? `<div class="cal-dots">${dots.map(c => `<div class="cal-dot" style="background:${c}"></div>`).join('')}</div>` : ''}
+      </div>`;
+  }
+
+  // 나머지 칸
+  const total = firstDay + daysInMonth;
+  const remain = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let i = 1; i <= remain; i++) {
+    html += `<div class="cal-day other-month"><span class="cal-day-num">${i}</span></div>`;
+  }
+
+  document.getElementById('calGrid').innerHTML = html;
+}
+
+/* ── 토스트 ── */
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+function api(params) {
+  return fetch(API_URL + '?' + new URLSearchParams(params)).then(r => r.json());
+}
+
+/* ── 데이터 로드 ── */
+async function loadData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  try {
+    const res = await api({ action: 'getAll' });
+    if (res.ok) { allData = res.data; renderList(); updateCounts(); renderCalendar(); }
+    else toast('불러오기 실패');
+  } catch { toast('네트워크 오류'); }
+  btn.classList.remove('spinning');
+}
+
+function updateCounts() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  document.getElementById('cnt-all').textContent      = allData.length;
+  document.getElementById('cnt-upcoming').textContent = allData.filter(r => { const e = toDateObj(r.end_date); return e && e >= today; }).length;
+  document.getElementById('cnt-past').textContent     = allData.filter(r => { const e = toDateObj(r.end_date); return e && e < today; }).length;
+}
+
+/* ── 목록 렌더 ── */
+function renderList() {
+  updateCounts();
+  const today = new Date(); today.setHours(0,0,0,0);
+  let filtered = allData;
+  if (currentFilter === 'upcoming') filtered = allData.filter(r => { const e = toDateObj(r.end_date); return e && e >= today; });
+  if (currentFilter === 'past')     filtered = allData.filter(r => { const e = toDateObj(r.end_date); return e && e < today; });
+
+  const el = document.getElementById('list');
+  if (filtered.length === 0) { el.innerHTML = '<div class="empty">신청 내역이 없습니다</div>'; return; }
+
+  el.innerHTML = filtered.map(r => `
+    <div class="req-item">
+      <div class="req-color-bar" style="background:${r.color || '#9B59B6'}"></div>
+      <div class="req-body">
+        <div class="req-top">
+          <span class="req-name">${r.user_name}</span>
+        </div>
+        <div class="req-meta">${fmtRange(r.start_date, r.end_date)}
+          <span class="req-type" style="background:${r.color}22;color:${r.color}">${r.type}</span>
+        </div>
+        ${r.note ? `<div class="req-note">💬 ${r.note}</div>` : ''}
+        <div class="req-date">신청일: ${r.created_at}</div>
+        <button class="btn-delete" onclick="doDelete('${r.id}')">🗑️ 삭제</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ── 상신 ── */
+async function submitRequest() {
+  const userName  = document.getElementById('userName').value.trim();
+  const startDate = document.getElementById('startDate').value;
+  const endDate   = document.getElementById('endDate').value;
+  const type      = document.getElementById('type').value;
+  const note      = document.getElementById('note').value.trim();
+
+  if (!userName)  { toast('이름을 입력해주세요'); return; }
+  if (!startDate) { toast('시작일을 선택해주세요'); return; }
+  if (!endDate)   { toast('종료일을 선택해주세요'); return; }
+  if (!type)      { toast('휴가 종류를 선택해주세요'); return; }
+  if (endDate < startDate) { alert('종료일이 시작일보다 빠릅니다.\n날짜를 다시 확인해주세요.'); return; }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.textContent = '처리 중...';
+
+  try {
+    const res = await api({ action: 'submit', user_name: userName, start_date: startDate, end_date: endDate, type, note, color: selectedColor });
+    if (res.ok) {
+      document.getElementById('userName').value  = '';
+      document.getElementById('startDate').value = '';
+      document.getElementById('endDate').value   = '';
+      document.getElementById('type').value      = '';
+      document.getElementById('note').value      = '';
+      toast('상신이 완료되었습니다 🎉');
+      await loadData();
+      if (!isPC()) switchPage('cal');
+    } else { toast('오류: ' + res.error); }
+  } catch { toast('네트워크 오류'); }
+
+  btn.disabled = false; btn.textContent = '상신하기';
+}
+
+async function doDelete(id) {
+  if (!confirm('이 신청을 삭제하시겠습니까?')) return;
+  const res = await api({ action: 'delete', id });
+  if (res.ok) { toast('삭제되었습니다'); await loadData(); }
+  else toast('오류: ' + res.error);
+}
+
+initColorPicker();
+loadData();
+setInterval(loadData, 30000);
+</script>
+</body>
+</html>

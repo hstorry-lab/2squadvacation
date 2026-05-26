@@ -87,6 +87,9 @@
   .req-date { font-size: 11px; color: #bbb; margin-top: 5px; }
   .btn-delete { height: 30px; padding: 0 10px; border-radius: 6px; font-size: 11px; font-family: inherit; cursor: pointer; background: none; border: 1px solid var(--border); color: var(--muted); margin-top: 6px; }
   .btn-delete:active { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
+  .btn-confirm-item { height: 30px; padding: 0 12px; border-radius: 6px; font-size: 11px; font-weight: 600; font-family: inherit; cursor: pointer; background: var(--accent-light); border: 1px solid var(--accent); color: var(--accent); margin-top: 6px; margin-right: 6px; }
+  .btn-confirm-item:active { opacity: .8; }
+  .confirmed-badge { display: inline-block; font-size: 11px; font-weight: 600; background: #E8F5E9; color: #2E7D32; padding: 2px 8px; border-radius: 10px; margin-top: 6px; }
 
   .empty   { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 0; }
   .loading { text-align: center; color: var(--muted); font-size: 14px; padding: 30px 0; }
@@ -189,9 +192,11 @@
   <div class="tab-content" id="page-list">
     <div class="card">
       <div class="filter-tabs">
-        <button class="ftab on" id="ftab-all"      onclick="switchFilter('all')">전체 <span class="ftab-count" id="cnt-all">0</span></button>
-        <button class="ftab"    id="ftab-upcoming" onclick="switchFilter('upcoming')">예정 <span class="ftab-count" id="cnt-upcoming">0</span></button>
-        <button class="ftab"    id="ftab-past"     onclick="switchFilter('past')">지난 휴가 <span class="ftab-count" id="cnt-past">0</span></button>
+        <button class="ftab on" id="ftab-unconfirmed" onclick="switchFilter('unconfirmed')">미확인 <span class="ftab-count" id="cnt-unconfirmed">0</span></button>
+        <button class="ftab"    id="ftab-confirmed"   onclick="switchFilter('confirmed')">확인완료 <span class="ftab-count" id="cnt-confirmed">0</span></button>
+        <button class="ftab"    id="ftab-all"         onclick="switchFilter('all')">전체 <span class="ftab-count" id="cnt-all">0</span></button>
+        <button class="ftab"    id="ftab-upcoming"    onclick="switchFilter('upcoming')">예정 <span class="ftab-count" id="cnt-upcoming">0</span></button>
+        <button class="ftab"    id="ftab-past"        onclick="switchFilter('past')">지난 휴가 <span class="ftab-count" id="cnt-past">0</span></button>
       </div>
       <div id="list"><div class="loading">불러오는 중...</div></div>
     </div>
@@ -242,7 +247,7 @@ const COLORS = [
 ];
 
 let allData = [];
-let currentFilter = 'all';
+let currentFilter = 'unconfirmed';
 let selectedColor = COLORS[0].value;
 let calYear, calMonth;
 
@@ -284,7 +289,7 @@ function switchPage(page) {
 
 function switchFilter(filter) {
   currentFilter = filter;
-  ['all','upcoming','past'].forEach(f => {
+  ['unconfirmed','confirmed','all','upcoming','past'].forEach(f => {
     document.getElementById('ftab-' + f).classList.toggle('on', f === filter);
   });
   renderList();
@@ -403,9 +408,11 @@ async function loadData() {
 
 function updateCounts() {
   const today = new Date(); today.setHours(0,0,0,0);
-  document.getElementById('cnt-all').textContent      = allData.length;
-  document.getElementById('cnt-upcoming').textContent = allData.filter(r => { const e = toDateObj(r.end_date); return e && e >= today; }).length;
-  document.getElementById('cnt-past').textContent     = allData.filter(r => { const e = toDateObj(r.end_date); return e && e < today; }).length;
+  document.getElementById('cnt-all').textContent         = allData.length;
+  document.getElementById('cnt-unconfirmed').textContent = allData.filter(r => r.confirmed !== 'Y').length;
+  document.getElementById('cnt-confirmed').textContent   = allData.filter(r => r.confirmed === 'Y').length;
+  document.getElementById('cnt-upcoming').textContent    = allData.filter(r => { const e = toDateObj(r.end_date); return e && e >= today; }).length;
+  document.getElementById('cnt-past').textContent        = allData.filter(r => { const e = toDateObj(r.end_date); return e && e < today; }).length;
 }
 
 /* ── 목록 렌더 ── */
@@ -413,8 +420,10 @@ function renderList() {
   updateCounts();
   const today = new Date(); today.setHours(0,0,0,0);
   let filtered = allData;
-  if (currentFilter === 'upcoming') filtered = allData.filter(r => { const e = toDateObj(r.end_date); return e && e >= today; });
-  if (currentFilter === 'past')     filtered = allData.filter(r => { const e = toDateObj(r.end_date); return e && e < today; });
+  if (currentFilter === 'unconfirmed') filtered = allData.filter(r => r.confirmed !== 'Y');
+  if (currentFilter === 'confirmed')   filtered = allData.filter(r => r.confirmed === 'Y');
+  if (currentFilter === 'upcoming')    filtered = allData.filter(r => { const e = toDateObj(r.end_date); return e && e >= today; });
+  if (currentFilter === 'past')        filtered = allData.filter(r => { const e = toDateObj(r.end_date); return e && e < today; });
 
   const el = document.getElementById('list');
   if (filtered.length === 0) { el.innerHTML = '<div class="empty">신청 내역이 없습니다</div>'; return; }
@@ -431,7 +440,10 @@ function renderList() {
         </div>
         ${r.note ? `<div class="req-note">💬 ${r.note}</div>` : ''}
         <div class="req-date">신청일: ${r.created_at}</div>
-        <button class="btn-delete" onclick="doDelete('${r.id}')">🗑️ 삭제</button>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+          ${r.confirmed !== 'Y' ? `<button class="btn-confirm-item" onclick="doConfirm('${r.id}')">✔ 확인</button>` : '<span class="confirmed-badge">✔ 확인완료</span>'}
+          <button class="btn-delete" onclick="doDelete('${r.id}')">🗑️ 삭제</button>
+        </div>
       </div>
     </div>
   `).join('');
@@ -469,6 +481,12 @@ async function submitRequest() {
   } catch { toast('네트워크 오류'); }
 
   btn.disabled = false; btn.textContent = '상신하기';
+}
+
+async function doConfirm(id) {
+  const res = await api({ action: 'confirm', id });
+  if (res.ok) { toast('확인 처리되었습니다 ✔'); await loadData(); }
+  else toast('오류: ' + res.error);
 }
 
 async function doDelete(id) {

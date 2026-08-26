@@ -276,7 +276,7 @@
 <div id="toast"></div>
 
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyE5bRgfGqBIR50e4mnLfSPKqcbT6nA3TMU_ww11k2iEUKQ_1cmSXmify8z948aZZC2/exec';
+const API_URL = 'YOUR_APPS_SCRIPT_URL';
 
 const COLORS = [
   { label: '보라', value: '#9B59B6' },
@@ -414,8 +414,7 @@ function renderCalendar() {
     const key = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday = dateObj.getTime() === today.getTime();
     const dots = (vacMap[key] && vacMap[key].colors) || [];
-    const dayVacs = vacMap[key] || [];
-    const hasVac = dayVacs.length > 0;
+    const hasVac = !!(vacMap[key] && vacMap[key].items && vacMap[key].items.length > 0);
     html += `
       <div class="cal-day ${isToday ? 'today' : ''} ${hasVac ? 'has-vac' : ''}"
         style="cursor:${hasVac ? 'pointer' : 'default'}"

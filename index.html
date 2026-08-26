@@ -276,7 +276,7 @@
 <div id="toast"></div>
 
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyE5bRgfGqBIR50e4mnLfSPKqcbT6nA3TMU_ww11k2iEUKQ_1cmSXmify8z948aZZC2/exec';
+const API_URL = 'YOUR_APPS_SCRIPT_URL';
 
 const COLORS = [
   { label: '보라', value: '#9B59B6' },
@@ -296,6 +296,7 @@ let currentFilter = 'unconfirmed';
 let selectedColor = COLORS[0].value;
 let calYear, calMonth;
 let searchQuery = '';
+let vacMap = {};
 
 // 이번 달로 초기화
 const now = new Date();
@@ -590,8 +591,6 @@ function hideTooltip() {
 }
 
 /* ── 모바일 날짜 팝업 ── */
-let vacMap = {};
-
 function openDayPopup(dateKey) {
   if (window.innerWidth >= 768) return; // PC는 tooltip으로
   const vacs = vacMap[dateKey];

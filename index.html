@@ -121,6 +121,34 @@
   #toast { position: fixed; bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px); left: 50%; transform: translateX(-50%); background: #1C1C1A; color: #fff; padding: 11px 20px; border-radius: 22px; font-size: 14px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity .25s; white-space: nowrap; z-index: 200; max-width: 90vw; }
   #toast.show { opacity: 1; }
 
+  /* 캘린더 툴팁 */
+  .cal-tooltip {
+    position: fixed; z-index: 300; background: #1C1C1A; color: #fff;
+    padding: 8px 12px; border-radius: 10px; font-size: 12px; line-height: 1.8;
+    pointer-events: none; white-space: nowrap; max-width: 200px; white-space: normal;
+    box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  }
+  .cal-tooltip-name { font-weight: 600; }
+  .cal-tooltip-type { opacity: .75; margin-left: 4px; }
+
+  /* 모바일 날짜 클릭 팝업 */
+  .day-popup-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200; align-items: flex-end; justify-content: center; }
+  .day-popup-overlay.on { display: flex; }
+  .day-popup { background: var(--surface); border-radius: 16px 16px 0 0; padding: 20px; width: 100%; max-width: 560px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .day-popup-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 16px; }
+  .day-popup-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+  .day-popup-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .day-popup-item:last-child { border-bottom: none; }
+  .day-popup-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+
+  /* 검색 */
+  .search-box { display: flex; gap: 8px; margin-bottom: 14px; }
+  .search-input { flex: 1; height: 42px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; font-family: inherit; background: var(--bg); color: var(--text); box-sizing: border-box; min-width: 0; }
+  .search-input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+  .search-clear { height: 42px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; font-family: inherit; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .search-clear:active { background: var(--bg); }
+  .search-result-label { font-size: 11px; color: var(--muted); margin-bottom: 10px; font-weight: 500; }
+
   /* PC */
   @media (min-width: 768px) {
     body { padding-bottom: 0; }
@@ -191,6 +219,11 @@
   <!-- 현황 -->
   <div class="tab-content" id="page-list">
     <div class="card">
+      <div class="search-box">
+        <input class="search-input" type="text" id="searchInput" placeholder="이름으로 검색..." oninput="onSearch()">
+        <button class="search-clear" onclick="clearSearch()">✕ 초기화</button>
+      </div>
+      <div id="searchResultLabel"></div>
       <div class="filter-tabs">
         <button class="ftab on" id="ftab-unconfirmed" onclick="switchFilter('unconfirmed')">미확인 <span class="ftab-count" id="cnt-unconfirmed">0</span></button>
         <button class="ftab"    id="ftab-confirmed"   onclick="switchFilter('confirmed')">확인완료 <span class="ftab-count" id="cnt-confirmed">0</span></button>
@@ -228,10 +261,22 @@
   </button>
 </nav>
 
+<!-- 모바일 날짜 클릭 팝업 -->
+<div class="day-popup-overlay" id="dayPopup" onclick="closeDayPopup(event)">
+  <div class="day-popup">
+    <div class="day-popup-handle"></div>
+    <div class="day-popup-title" id="dayPopupTitle"></div>
+    <div id="dayPopupList"></div>
+  </div>
+</div>
+
+<!-- 캘린더 툴팁 -->
+<div class="cal-tooltip" id="calTooltip" style="display:none"></div>
+
 <div id="toast"></div>
 
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyE5bRgfGqBIR50e4mnLfSPKqcbT6nA3TMU_ww11k2iEUKQ_1cmSXmify8z948aZZC2/exec';
+const API_URL = 'YOUR_APPS_SCRIPT_URL';
 
 const COLORS = [
   { label: '보라', value: '#9B59B6' },
@@ -250,6 +295,7 @@ let allData = [];
 let currentFilter = 'unconfirmed';
 let selectedColor = COLORS[0].value;
 let calYear, calMonth;
+let searchQuery = '';
 
 // 이번 달로 초기화
 const now = new Date();
@@ -335,8 +381,8 @@ function renderCalendar() {
   const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
   const prevDays = new Date(calYear, calMonth, 0).getDate();
 
-  // 이 달에 해당하는 휴가들
-  const vacMap = {}; // 'yyyy-MM-dd' → [color, ...]
+  // 이 달에 해당하는 휴가들 (전역 vacMap 업데이트)
+  vacMap = {};
   allData.forEach(r => {
     const s = toDateObj(r.start_date);
     const e = toDateObj(r.end_date);
@@ -345,8 +391,9 @@ function renderCalendar() {
     while (cur <= e) {
       if (cur.getFullYear() === calYear && cur.getMonth() === calMonth) {
         const key = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
-        if (!vacMap[key]) vacMap[key] = [];
-        if (!vacMap[key].includes(r.color)) vacMap[key].push(r.color);
+        if (!vacMap[key]) vacMap[key] = { colors: [], items: [] };
+        if (!vacMap[key].colors.includes(r.color)) vacMap[key].colors.push(r.color);
+        if (!vacMap[key].items.find(i => i.id === r.id)) vacMap[key].items.push({ id: r.id, name: r.user_name, type: r.type, color: r.color });
       }
       cur.setDate(cur.getDate() + 1);
     }
@@ -365,9 +412,16 @@ function renderCalendar() {
     const dateObj = new Date(calYear, calMonth, d);
     const key = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday = dateObj.getTime() === today.getTime();
-    const dots = vacMap[key] || [];
+    const dots = (vacMap[key] && vacMap[key].colors) || [];
+    const dayVacs = vacMap[key] || [];
+    const hasVac = dayVacs.length > 0;
     html += `
-      <div class="cal-day ${isToday ? 'today' : ''}">
+      <div class="cal-day ${isToday ? 'today' : ''} ${hasVac ? 'has-vac' : ''}"
+        style="cursor:${hasVac ? 'pointer' : 'default'}"
+        data-date="${key}"
+        onmouseenter="${hasVac ? `showTooltip(event,'${key}')` : ''}"
+        onmouseleave="hideTooltip()"
+        onclick="${hasVac ? `openDayPopup('${key}')` : ''}">
         <span class="cal-day-num">${d}</span>
         ${dots.length ? `<div class="cal-dots">${dots.map(c => `<div class="cal-dot" style="background:${c}"></div>`).join('')}</div>` : ''}
       </div>`;
@@ -425,6 +479,21 @@ function renderList() {
   if (currentFilter === 'upcoming')    filtered = allData.filter(r => { const e = toDateObj(r.end_date); return e && e >= today; });
   if (currentFilter === 'past')        filtered = allData.filter(r => { const e = toDateObj(r.end_date); return e && e < today; });
 
+  // 검색어 필터
+  const label = document.getElementById('searchResultLabel');
+  if (searchQuery) {
+    filtered = allData.filter(r => r.user_name && r.user_name.includes(searchQuery));
+    // 휴가 날짜 기준 내림차순 정렬
+    filtered.sort((a, b) => {
+      const da = toDateObj(a.start_date), db = toDateObj(b.start_date);
+      if (!da || !db) return 0;
+      return db - da;
+    });
+    label.textContent = `"${searchQuery}" 검색 결과 ${filtered.length}건`;
+  } else {
+    label.textContent = '';
+  }
+
   const el = document.getElementById('list');
   if (filtered.length === 0) { el.innerHTML = '<div class="empty">신청 내역이 없습니다</div>'; return; }
 
@@ -481,6 +550,67 @@ async function submitRequest() {
   } catch { toast('네트워크 오류'); }
 
   btn.disabled = false; btn.textContent = '상신하기';
+}
+
+/* ── 검색 ── */
+function onSearch() {
+  searchQuery = document.getElementById('searchInput').value.trim();
+  renderList();
+}
+
+function clearSearch() {
+  searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  renderList();
+}
+
+/* ── 툴팁 ── */
+function showTooltip(e, dateKey) {
+  const vacs = vacMap[dateKey];
+  if (!vacs || !vacs.items || !vacs.items.length) return;
+  const el = document.getElementById('calTooltip');
+  el.innerHTML = vacs.items.map(v =>
+    `<div><span class="cal-tooltip-name" style="color:${v.color}">${v.name}</span><span class="cal-tooltip-type">${v.type}</span></div>`
+  ).join('');
+  el.style.display = 'block';
+  positionTooltip(e, el);
+}
+
+function positionTooltip(e, el) {
+  const x = e.clientX + 12;
+  const y = e.clientY + 12;
+  const w = el.offsetWidth || 160;
+  const h = el.offsetHeight || 60;
+  el.style.left = (x + w > window.innerWidth ? x - w - 24 : x) + 'px';
+  el.style.top  = (y + h > window.innerHeight ? y - h - 24 : y) + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('calTooltip').style.display = 'none';
+}
+
+/* ── 모바일 날짜 팝업 ── */
+let vacMap = {};
+
+function openDayPopup(dateKey) {
+  if (window.innerWidth >= 768) return; // PC는 tooltip으로
+  const vacs = vacMap[dateKey];
+  if (!vacs || !vacs.items || !vacs.items.length) return;
+  const [y, m, d] = dateKey.split('-');
+  document.getElementById('dayPopupTitle').textContent = `${y}년 ${parseInt(m)}월 ${parseInt(d)}일 휴가자`;
+  document.getElementById('dayPopupList').innerHTML = vacs.items.map(v => `
+    <div class="day-popup-item">
+      <span style="font-weight:600;color:${v.color}">${v.name}</span>
+      <span class="day-popup-tag" style="background:${v.color}22;color:${v.color}">${v.type}</span>
+    </div>
+  `).join('');
+  document.getElementById('dayPopup').classList.add('on');
+}
+
+function closeDayPopup(e) {
+  if (e.target === document.getElementById('dayPopup')) {
+    document.getElementById('dayPopup').classList.remove('on');
+  }
 }
 
 async function doConfirm(id) {

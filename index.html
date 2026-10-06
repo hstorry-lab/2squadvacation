@@ -90,6 +90,9 @@
   .btn-confirm-item { height: 30px; padding: 0 12px; border-radius: 6px; font-size: 11px; font-weight: 600; font-family: inherit; cursor: pointer; background: var(--accent-light); border: 1px solid var(--accent); color: var(--accent); margin-top: 6px; margin-right: 6px; }
   .btn-confirm-item:active { opacity: .8; }
   .confirmed-badge { display: inline-block; font-size: 11px; font-weight: 600; background: #E8F5E9; color: #2E7D32; padding: 2px 8px; border-radius: 10px; margin-top: 6px; }
+  .rejected-badge { display: inline-block; font-size: 11px; font-weight: 600; background: var(--danger-light); color: var(--danger); padding: 2px 8px; border-radius: 10px; margin-top: 6px; }
+  .btn-reject-item { height: 30px; padding: 0 12px; border-radius: 6px; font-size: 11px; font-weight: 600; font-family: inherit; cursor: pointer; background: var(--danger-light); border: 1px solid var(--danger); color: var(--danger); margin-top: 6px; margin-right: 6px; }
+  .btn-reject-item:active { opacity: .8; }
 
   .empty   { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 0; }
   .loading { text-align: center; color: var(--muted); font-size: 14px; padding: 30px 0; }
@@ -227,6 +230,7 @@
       <div class="filter-tabs">
         <button class="ftab on" id="ftab-unconfirmed" onclick="switchFilter('unconfirmed')">미확인 <span class="ftab-count" id="cnt-unconfirmed">0</span></button>
         <button class="ftab"    id="ftab-confirmed"   onclick="switchFilter('confirmed')">확인완료 <span class="ftab-count" id="cnt-confirmed">0</span></button>
+        <button class="ftab"    id="ftab-rejected"    onclick="switchFilter('rejected')">반려 <span class="ftab-count" id="cnt-rejected">0</span></button>
         <button class="ftab"    id="ftab-all"         onclick="switchFilter('all')">전체 <span class="ftab-count" id="cnt-all">0</span></button>
         <button class="ftab"    id="ftab-upcoming"    onclick="switchFilter('upcoming')">예정 <span class="ftab-count" id="cnt-upcoming">0</span></button>
         <button class="ftab"    id="ftab-past"        onclick="switchFilter('past')">지난 휴가 <span class="ftab-count" id="cnt-past">0</span></button>
@@ -276,7 +280,7 @@
 <div id="toast"></div>
 
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycbyE5bRgfGqBIR50e4mnLfSPKqcbT6nA3TMU_ww11k2iEUKQ_1cmSXmify8z948aZZC2/exec';
+const API_URL = 'YOUR_APPS_SCRIPT_URL';
 
 const COLORS = [
   { label: '보라', value: '#9B59B6' },
@@ -336,7 +340,7 @@ function switchPage(page) {
 
 function switchFilter(filter) {
   currentFilter = filter;
-  ['unconfirmed','confirmed','all','upcoming','past'].forEach(f => {
+  ['unconfirmed','confirmed','rejected','all','upcoming','past'].forEach(f => {
     document.getElementById('ftab-' + f).classList.toggle('on', f === filter);
   });
   renderList();
@@ -463,7 +467,8 @@ async function loadData() {
 function updateCounts() {
   const today = new Date(); today.setHours(0,0,0,0);
   document.getElementById('cnt-all').textContent         = allData.length;
-  document.getElementById('cnt-unconfirmed').textContent = allData.filter(r => r.confirmed !== 'Y').length;
+  document.getElementById('cnt-unconfirmed').textContent = allData.filter(r => r.confirmed !== 'Y' && r.rejected !== 'Y').length;
+  document.getElementById('cnt-rejected').textContent    = allData.filter(r => r.rejected === 'Y').length;
   document.getElementById('cnt-confirmed').textContent   = allData.filter(r => r.confirmed === 'Y').length;
   document.getElementById('cnt-upcoming').textContent    = allData.filter(r => { const e = toDateObj(r.end_date); return e && e >= today; }).length;
   document.getElementById('cnt-past').textContent        = allData.filter(r => { const e = toDateObj(r.end_date); return e && e < today; }).length;
@@ -474,7 +479,8 @@ function renderList() {
   updateCounts();
   const today = new Date(); today.setHours(0,0,0,0);
   let filtered = allData;
-  if (currentFilter === 'unconfirmed') filtered = allData.filter(r => r.confirmed !== 'Y');
+  if (currentFilter === 'unconfirmed') filtered = allData.filter(r => r.confirmed !== 'Y' && r.rejected !== 'Y');
+  if (currentFilter === 'rejected')    filtered = allData.filter(r => r.rejected === 'Y');
   if (currentFilter === 'confirmed')   filtered = allData.filter(r => r.confirmed === 'Y');
   if (currentFilter === 'upcoming')    filtered = allData.filter(r => { const e = toDateObj(r.end_date); return e && e >= today; });
   if (currentFilter === 'past')        filtered = allData.filter(r => { const e = toDateObj(r.end_date); return e && e < today; });
@@ -510,7 +516,9 @@ function renderList() {
         ${r.note ? `<div class="req-note">💬 ${r.note}</div>` : ''}
         <div class="req-date">신청일: ${r.created_at}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-          ${r.confirmed !== 'Y' ? `<button class="btn-confirm-item" onclick="doConfirm('${r.id}')">✔ 확인</button>` : '<span class="confirmed-badge">✔ 확인완료</span>'}
+          ${r.rejected === 'Y' ? '<span class="rejected-badge">✕ 반려</span>' :
+            r.confirmed === 'Y' ? '<span class="confirmed-badge">✔ 확인완료</span>' :
+            `<button class="btn-confirm-item" onclick="doConfirm('${r.id}')">✔ 확인</button><button class="btn-reject-item" onclick="doRejectItem('${r.id}')">✕ 반려</button>`}
           <button class="btn-delete" onclick="doDelete('${r.id}')">🗑️ 삭제</button>
         </div>
       </div>
@@ -609,6 +617,13 @@ function closeDayPopup(e) {
   if (e.target === document.getElementById('dayPopup')) {
     document.getElementById('dayPopup').classList.remove('on');
   }
+}
+
+async function doRejectItem(id) {
+  if (!confirm('이 신청을 반려하시겠습니까?')) return;
+  const res = await api({ action: 'reject', id });
+  if (res.ok) { toast('반려 처리되었습니다'); await loadData(); }
+  else toast('오류: ' + res.error);
 }
 
 async function doConfirm(id) {
